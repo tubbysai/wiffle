@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Sandlot Wiffle Showdown</title>
+<style>
+  :root{
+    --panel-bg: #fff8e7;
+    --panel-border: #d8a83a;
+    --ink: #3a2b1a;
+    --accent: #d94f3d;
+    --accent2: #2f8f4e;
+    --btn-shadow: #0003;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    overflow:hidden; background:#0b1622;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+    user-select: none;
+  }
+  #game{
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    display:block; background:#7ec8f2;
+  }
+  .overlay{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background: rgba(10,20,15,0.55);
+    z-index:50;
+    padding: 16px;
+  }
+  .hidden{ display:none !important; }
+  .panel{
+    background: var(--panel-bg);
+    border: 4px solid var(--panel-border);
+    border-radius: 18px;
+    padding: 22px 26px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 0 var(--btn-shadow), 0 20px 40px #0006;
+    text-align:center;
+  }
+  .panel h1{
+    margin: 2px 0 4px;
+    font-size: 2rem;
+    color: var(--accent);
+    text-shadow: 2px 2px 0 #fff2, -1px -1px 0 #0002;
+    letter-spacing: 1px;
+  }
+  .panel h2{ margin:4px 0 12px; color:var(--ink); }
+  .subtitle{ margin: 0 0 16px; color:#6b5a3d; font-size:0.95rem;}
+  .btn{
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight:bold;
+    padding: 10px 18px;
+    margin: 6px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent2);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #1e6636;
+    transition: transform .05s;
+  }
+  .btn:active{ transform: translateY(3px); box-shadow: 0 1px 0 #1e6636; }
+  .btn.secondary{ background:#6b7a8f; box-shadow:0 4px 0 #414d5c; }
+  .btn.secondary:active{ box-shadow:0 1px 0 #414d5c; }
+  .btn.danger{ background:var(--accent); box-shadow:0 4px 0 #8f2f22; }
+  .btn.danger:active{ box-shadow:0 1px 0 #8f2f22; }
+  .btn.play{ font-size:1.25rem; padding:14px 34px; }
+  .btn.small{ font-size:0.8rem; padding:6px 10px; margin:4px; }
+  .btn.toggle-on{ outline: 3px solid #fff; }
+  .row{ display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:4px; margin: 8px 0; }
+  .diffRow .btn{ background:#c98a2b; box-shadow:0 4px 0 #8a5c16; }
+  .diffRow .btn.active{ background:var(--accent2); box-shadow:0 4px 0 #1e6636; outline:3px solid #ffe9a8; }
+  #statsPanel{
+    background:#fff; border:2px dashed #d8a83a; border-radius:12px;
+    padding:10px 14px; margin-top:14px; font-size:0.85rem; text-align:left;
+  }
+  #statsPanel h3{ margin:2px 0 8px; text-align:center; color:var(--accent2); }
+  #statsGrid{ display:grid; grid-template-columns: 1fr 1fr; gap:2px 14px; }
+  #statsGrid div span{ font-weight:bold; float:right; }
+
+  /* HUD */
+  #hud{ position:fixed; inset:0; pointer-events:none; z-index:20; }
+  #hudTop{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    gap:6px; padding: 8px 8px; pointer-events:none;
+  }
+  .hudBox{
+    background: rgba(255,248,231,0.92); border:2px solid var(--panel-border);
+    border-radius:10px; padding:6px 10px; font-size:0.8rem; font-weight:bold;
+    pointer-events:auto; box-shadow:0 3px 0 #0003; white-space:nowrap; flex-shrink:0;
+  }
+  #scoreBox{ font-size:0.9rem; }
+  #roleBox{
+    text-align:center; flex:1; min-width:0;
+  }
+  #roleBadge{
+    display:inline-block; padding:3px 12px; border-radius:20px; font-weight:bold;
+    color:#fff; font-size:0.85rem; letter-spacing:1px;
+  }
+  #roleBadge.bat{ background:var(--accent); }
+  #roleBadge.pitch{ background:var(--accent2); }
+  #countLine{ margin-top:4px; font-size:0.72rem; color:#fff; text-shadow:1px 1px 2px #000a; font-weight:bold;}
+  #pauseBtn{ pointer-events:auto; }
+  @media (max-width: 480px){
+    #scoreBox, #pauseBtn{ font-size:0.7rem; padding:5px 7px; }
+    #roleBadge{ font-size:0.72rem; padding:3px 9px; }
+    #countLine{ font-size:0.62rem; }
+  }
+
+  #banner{
+    position:fixed; top:38%; left:50%; transform:translate(-50%,-50%) scale(0.8);
+    z-index:30; font-size:1.7rem; font-weight:bold; color:#fff;
+    text-shadow: 2px 2px 0 #000, 0 0 18px #000a;
+    background: rgba(0,0,0,0.35); padding:10px 26px; border-radius:14px;
+    opacity:0; transition: opacity .15s, transform .15s;
+    pointer-events:none; text-align:center; white-space:nowrap;
+  }
+  #banner.show{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+
+  /* Pitch control dock */
+  #pitchDock{
+    position:fixed; bottom:0; left:0; right:0; z-index:25;
+    display:flex; flex-direction:column; align-items:center;
+    padding: 8px 8px 14px; pointer-events:none;
+  }
+  #pitchDock.hidden{ display:none; }
+  #pitchDock .dockInner{ pointer-events:auto; text-align:center; }
+  #pitchTypeRow .btn{ font-size:0.85rem; padding:8px 12px; }
+  #dockHint{
+    color:#fff; font-weight:bold; text-shadow:1px 1px 3px #000; margin-bottom:6px; font-size:0.85rem;
+    background:rgba(0,0,0,0.3); padding:4px 10px; border-radius:8px; display:inline-block;
+  }
+  #meterWrap{
+    width:min(90vw,420px); height:34px; background:#222b; border:2px solid #fff8;
+    border-radius:8px; position:relative; overflow:hidden; margin:4px auto;
+  }
+  #meterSweet{ position:absolute; top:0; bottom:0; left:42%; width:16%; background:#2f8f4e88; }
+  #meterBar{ position:absolute; top:2px; bottom:2px; width:4px; background:#fff; border-radius:2px; }
+
+  #howto ul{ text-align:left; font-size:0.9rem; line-height:1.5; }
+  #howto h3{ color:var(--accent2); margin-bottom:2px; }
+
+  #winOverlay .panel h1{ font-size:2.4rem; }
+
+  input[type=checkbox]{ transform:scale(1.3); margin-right:6px; vertical-align:middle;}
+  label.soundLabel{ font-weight:bold; cursor:pointer; user-select:none; }
+
+  @media (max-height: 560px){
+    .panel{ padding:12px 16px; }
+    .panel h1{ font-size:1.5rem; }
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="hudTop">
+    <div id="scoreBox" class="hudBox">YOU 0 &nbsp;-&nbsp; 0 CPU</div>
+    <div id="roleBox">
+      <div id="roleBadge" class="bat">BATTING</div>
+      <div id="countLine">Balls: 0  Strikes: 0 &nbsp;|&nbsp; At-bats left: 3</div>
+    </div>
+    <div id="pauseBtn" class="hudBox btn small" style="margin:0;">II Pause</div>
+  </div>
+</div>
+
+<div id="banner"></div>
+
+<div id="pitchDock" class="hidden">
+  <div class="dockInner">
+    <div id="dockHint">Choose your pitch</div>
+    <div id="pitchTypeRow" class="row"></div>
+    <div id="meterWrap" class="hidden">
+      <div id="meterSweet"></div>
+      <div id="meterBar"></div>
+    </div>
+  </div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="panel">
+    <h1>&#9918; SANDLOT WIFFLE SHOWDOWN</h1>
+    <p class="subtitle">3 at-bats batting, 3 at-bats pitching. First to 10 wins!</p>
+    <div class="row diffRow" id="diffRow">
+      <button class="btn" data-diff="rookie">Rookie</button>
+      <button class="btn" data-diff="pro">Pro</button>
+      <button class="btn" data-diff="allstar">All-Star</button>
+    </div>
+    <div class="row">
+      <label class="soundLabel"><input type="checkbox" id="soundToggle" checked> Sound</label>
+    </div>
+    <div class="row">
+      <button class="btn play" id="playBtn">PLAY BALL</button>
+    </div>
+    <div class="row">
+      <button class="btn secondary small" id="howtoBtn">How to Play</button>
+      <button class="btn danger small" id="resetStatsBtn">Reset Stats</button>
+    </div>
+    <div id="statsPanel">
+      <h3>Lifetime Stats</h3>
+      <div id="statsGrid"></div>
+    </div>
+  </div>
+</div>
+
+<div id="howto" class="overlay hidden">
+  <div class="panel">
+    <h2>How to Play</h2>
+    <h3>Batting</h3>
+    <ul>
+      <li>Move your mouse (or finger) to aim the swing cursor.</li>
+      <li>Click / tap to swing at the right moment.</li>
+      <li>Great timing + close to the ball = FAIR HIT.</li>
+      <li>Decent contact = FOUL BALL (counts as a strike, but can't strike you out).</li>
+      <li>Bad swing or no bat on ball = STRIKE.</li>
+      <li>Don't swing: pitch in the zone = called strike, outside = ball.</li>
+      <li>4 balls = walk (+1 point). 3 strikes = strikeout (CPU +1 point).</li>
+    </ul>
+    <h3>Pitching</h3>
+    <ul>
+      <li>Pick a pitch type button.</li>
+      <li>Click/tap near the strike zone to aim your pitch.</li>
+      <li>A timing bar sweeps back and forth &mdash; click/tap to stop it in the green zone for best control.</li>
+      <li>Missing the sweet spot makes your pitch drift off target!</li>
+    </ul>
+    <div class="row"><button class="btn" id="closeHowto">Got it!</button></div>
+  </div>
+</div>
+
+<div id="pauseOverlay" class="overlay hidden">
+  <div class="panel">
+    <h2>Paused</h2>
+    <div class="row">
+      <button class="btn" id="resumeBtn">Resume</button>
+    </div>
+    <div class="row">
+      <label class="soundLabel"><input type="checkbox" id="soundTogglePause"> Sound</label>
+    </div>
+    <div class="row">
+      <button class="btn danger" id="quitBtn">Back to Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<div id="winOverlay" class="overlay hidden">
+  <div class="panel">
+    <h1 id="winTitle">YOU WIN!</h1>
+    <h2 id="winScore">10 - 6</h2>
+    <div class="row">
+      <button class="btn play" id="rematchBtn">Rematch</button>
+    </div>
+    <div class="row">
+      <button class="btn secondary" id="winMenuBtn">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= CONSTANTS ================= */
+const TAU = Math.PI*2;
+const FOCAL = 20;
+const ZFAR = 52;
+const RELEASE_Y = 5.8;
+const ZONE_HALF_W = 0.85;
+const ZONE_BOTTOM = 1.4;
+const ZONE_TOP = 3.6;
+const BALL_RADIUS = 0.13;
+
+const PITCH_TYPES = {
+  fastball: { label:"Fastball", baseSpeed:74, color:"#ffffff" },
+  slider:   { label:"Slider",   baseSpeed:62, breakAmp:5.5, color:"#ffe9a8" },
+  curve:    { label:"Curve",    baseSpeed:56, breakAmp:6.5, color:"#bfe3ff" },
+  riser:    { label:"Riser",    baseSpeed:60, breakAmp:4.6, color:"#c8ffcf" },
+  knuckler: { label:"Knuckler", baseSpeed:42, color:"#ffd0e6" }
+};
+const PITCH_ORDER = ["fastball","slider","curve","riser","knuckler"];
+
+const DIFF = {
+  rookie: { label:"Rookie", cpuPitchSpeedMult:0.82, cpuControlError:0.95,
+    pitchWeights:{fastball:55,slider:15,curve:15,riser:5,knuckler:10}, nibble:0.18,
+    cpuReadT:0.32, chaseChance:0.55, reactionJitter:0.15, contactTolerance:0.62,
+    timingWindowCPU:0.32, fairThreshold:0.80, foulThreshold:0.44 },
+  pro: { label:"Pro", cpuPitchSpeedMult:1.0, cpuControlError:0.55,
+    pitchWeights:{fastball:35,slider:22,curve:20,riser:12,knuckler:11}, nibble:0.4,
+    cpuReadT:0.55, chaseChance:0.35, reactionJitter:0.09, contactTolerance:0.48,
+    timingWindowCPU:0.25, fairThreshold:0.72, foulThreshold:0.40 },
+  allstar: { label:"All-Star", cpuPitchSpeedMult:1.18, cpuControlError:0.28,
+    pitchWeights:{fastball:22,slider:26,curve:22,riser:16,knuckler:14}, nibble:0.6,
+    cpuReadT:0.72, chaseChance:0.20, reactionJitter:0.05, contactTolerance:0.40,
+    timingWindowCPU:0.20, fairThreshold:0.66, foulThreshold:0.36 }
+};
+
+const STATS_KEY = "wiffleball-stats";
+const WIN_SCORE = 10;
+
+/* ================= UTIL ================= */
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function mulberry32(seed){
+  let a = seed>>>0;
+  return function(){
+    a |= 0; a = (a+0x6D2B79F5)|0;
+    let t = Math.imul(a ^ (a>>>15), 1 | a);
+    t = (t + Math.imul(t ^ (t>>>7), 61 | t)) ^ t;
+    return ((t ^ (t>>>14))>>>0) / 4294967296;
+  };
+}
+function weightedPick(weights, rng){
+  rng = rng || Math.random;
+  const keys = Object.keys(weights);
+  const total = keys.reduce((s,k)=>s+weights[k],0);
+  let r = rng()*total;
+  for(const k of keys){ r -= weights[k]; if(r<=0) return k; }
+  return keys[keys.length-1];
+}
+
+/* ================= STATS ================= */
+function defaultStats(){
+  return { gamesPlayed:0, wins:0, losses:0, hits:0, walks:0,
+    strikeoutsThrown:0, strikeoutsTaken:0, curStreak:0, bestStreak:0,
+    sound:true, difficulty:"pro" };
+}
+function loadStats(){
+  try{
+    const raw = localStorage.getItem(STATS_KEY);
+    if(!raw) return defaultStats();
+    const parsed = JSON.parse(raw);
+    if(typeof parsed !== "object" || parsed===null) return defaultStats();
+    return Object.assign(defaultStats(), parsed);
+  }catch(e){ return defaultStats(); }
+}
+function saveStats(){
+  try{ localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }catch(e){ /* ignore */ }
+}
+let stats = loadStats();
+
+function renderStatsPanel(){
+  const g = document.getElementById("statsGrid");
+  g.innerHTML = "";
+  const rows = [
+    ["Games Played", stats.gamesPlayed],
+    ["Wins", stats.wins],
+    ["Losses", stats.losses],
+    ["Hits", stats.hits],
+    ["Walks", stats.walks],
+    ["Ks Thrown", stats.strikeoutsThrown],
+    ["Ks Taken", stats.strikeoutsTaken],
+    ["Current Streak", stats.curStreak],
+    ["Best Streak", stats.bestStreak]
+  ];
+  rows.forEach(([label,val])=>{
+    const d = document.createElement("div");
+    d.innerHTML = label+"<span>"+val+"</span>";
+    g.appendChild(d);
+  });
+}
+
+/* ================= AUDIO ================= */
+const Audio1 = (function(){
+  let ctx = null;
+  function ensure(){
+    if(!ctx){
+      try{ ctx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ ctx=null; }
+    }
+    if(ctx && ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  function on(){ return stats.sound; }
+  function tone(freq, dur, type, vol, delay){
+    if(!on()) return;
+    const c = ensure(); if(!c) return;
+    const t0 = c.currentTime + (delay||0);
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = type||"sine";
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(vol||0.3, t0+0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    osc.connect(gain); gain.connect(c.destination);
+    osc.start(t0); osc.stop(t0+dur+0.02);
+  }
+  function noiseBurst(dur, vol, filterFreq, type){
+    if(!on()) return;
+    const c = ensure(); if(!c) return;
+    const bufSize = Math.max(1,Math.floor(c.sampleRate*dur));
+    const buf = c.createBuffer(1, bufSize, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for(let i=0;i<bufSize;i++){ data[i] = (Math.random()*2-1) * (1 - i/bufSize); }
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filt = c.createBiquadFilter();
+    filt.type = type||"lowpass";
+    filt.frequency.setValueAtTime(filterFreq||2000, c.currentTime);
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(vol||0.4, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime+dur);
+    src.connect(filt); filt.connect(gain); gain.connect(c.destination);
+    src.start();
+  }
+  return {
+    unlock(){ ensure(); },
+    pop(){ noiseBurst(0.06,0.5,3200,"bandpass"); tone(900,0.05,"sine",0.15); },
+    crack(){
+      noiseBurst(0.18,0.7,1600,"lowpass");
+      tone(140,0.18,"square",0.3);
+      tone(90,0.28,"sine",0.25,0.02);
+    },
+    whiff(){ noiseBurst(0.22,0.35,4500,"highpass"); },
+    strikeCall(){ tone(220,0.28,"sawtooth",0.22); tone(180,0.3,"sawtooth",0.18,0.1); },
+    ballCall(){ tone(500,0.14,"sine",0.18); },
+    foul(){ noiseBurst(0.1,0.4,2200,"bandpass"); },
+    walk(){ tone(440,0.12,"sine",0.2); tone(660,0.16,"sine",0.2,0.1); },
+    strikeout(){ tone(300,0.18,"sawtooth",0.25); tone(200,0.25,"sawtooth",0.22,0.15); },
+    win(){
+      [523,659,784,1046].forEach((f,i)=>tone(f,0.22,"triangle",0.25,i*0.14));
+    },
+    lose(){
+      [400,340,280,220].forEach((f,i)=>tone(f,0.28,"sawtooth",0.2,i*0.16));
+    }
+  };
+})();
+
+/* ================= CANVAS / PROJECTION ================= */
+const canvas = document.getElementById("game");
+const ctx2d = canvas.getContext("2d");
+let W=800,H=500,DPR=1;
+let centerX=400, horizonY=200, plateBaseY=400, xSpread=128, ySpread=75;
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.floor(W*DPR);
+  canvas.height = Math.floor(H*DPR);
+  canvas.style.width = W+"px";
+  canvas.style.height = H+"px";
+  ctx2d.setTransform(DPR,0,0,DPR,0,0);
+  centerX = W/2;
+  horizonY = H*0.40;
+  plateBaseY = H*0.83;
+  xSpread = W*0.155;
+  ySpread = H*0.145;
+}
+window.addEventListener("resize", resize);
+resize();
+
+function project(x,y,z){
+  const scale = FOCAL/(z+FOCAL);
+  const sx = centerX + x*scale*xSpread;
+  const sy = plateBaseY - y*scale*ySpread;
+  return {sx, sy, scale};
+}
+function unprojectPlate(sx, sy){
+  return { x: (sx-centerX)/xSpread, y: (plateBaseY-sy)/ySpread };
+}
+function inZone(x,y,mx,my){
+  mx = mx||0; my = my||0;
+  return Math.abs(x) <= ZONE_HALF_W+mx && y >= ZONE_BOTTOM-my && y <= ZONE_TOP+my;
+}
+
+/* ================= GAME STATE ================= */
+const game = {
+  state: "menu", // menu, playing, paused, gameover
+  difficulty: "pro",
+  score: { player:0, cpu:0 },
+  role: "batting", // batting | pitching (player's role)
+  atBatsLeft: 3,
+  count: { balls:0, strikes:0 },
+  shake: 0,
+  time: 0
+};
+
+/* pointer tracking */
+const pointer = { x: -9999, y: -9999, active:false };
+function toCanvasCoords(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  return { x: clientX-rect.left, y: clientY-rect.top };
+}
+function onPointerMove(e){
+  const p = e.touches && e.touches[0] ? e.touches[0] : e;
+  const c = toCanvasCoords(p.clientX, p.clientY);
+  pointer.x = c.x; pointer.y = c.y;
+}
+function onPointerDown(e){
+  Audio1.unlock();
+  const p = e.touches && e.touches[0] ? e.touches[0] : e;
+  const c = toCanvasCoords(p.clientX, p.clientY);
+  pointer.x = c.x; pointer.y = c.y; pointer.active = true;
+  handleTap(c.x, c.y);
+  e.preventDefault();
+}
+canvas.addEventListener("mousemove", onPointerMove);
+canvas.addEventListener("mousedown", onPointerDown);
+canvas.addEventListener("touchmove", function(e){ onPointerMove(e); e.preventDefault(); }, {passive:false});
+canvas.addEventListener("touchstart", onPointerDown, {passive:false});
+
+function onDockTap(e){
+  if(game.state !== "playing") return;
+  if(flow.phase === "meter"){
+    Audio1.unlock();
+    stopMeter();
+    e.stopPropagation();
+    e.preventDefault();
+  }
+}
+const dockInnerEl = document.querySelector("#pitchDock .dockInner");
+dockInnerEl.addEventListener("mousedown", onDockTap);
+dockInnerEl.addEventListener("touchstart", onDockTap, {passive:false});
+
+function handleTap(x,y){
+  if(game.state !== "playing") return;
+  if(game.role === "batting"){
+    if(flow.phase === "flight") playerSwing();
+  } else {
+    if(flow.phase === "aim") confirmAim(x,y);
+    else if(flow.phase === "meter") stopMeter();
+  }
+}
+
+/* ================= PITCH TRAJECTORY ================= */
+function makePitch(opts){
+  const type = opts.type;
+  const cfg = PITCH_TYPES[type];
+  const speedMult = opts.speedMult || 1;
+  const speedMph = cfg.baseSpeed * speedMult;
+  const speedFtPerSec = speedMph * 1.4667;
+  const duration = ZFAR / speedFtPerSec;
+  const seed = Math.floor(Math.random()*1e9);
+  const rng = mulberry32(seed);
+
+  const errAngle = rng()*TAU;
+  const errMag = (opts.controlErrorMag||0) * rng();
+  const errX = Math.cos(errAngle)*errMag;
+  const errY = Math.sin(errAngle)*errMag*0.6;
+  const finalTargetX = opts.target.x + errX;
+  const finalTargetY = clamp(opts.target.y + errY, 0.3, 4.6);
+
+  let wob = null;
+  if(type === "knuckler"){
+    wob = {
+      f1: 2+rng()*3, p1: rng()*TAU, a1: 1.3+rng()*1.1,
+      f2: 4+rng()*4, p2: rng()*TAU, a2: 0.7+rng()*0.7,
+      fy1: 3+rng()*3, py1: rng()*TAU, ay1: 0.6+rng()*0.5
+    };
+  }
+  const sliderDir = type === "slider" ? (rng()<0.5?-1:1) : 1;
+
+  function sample(t){
+    const tc = clamp(t,0,1.2);
+    const tt = Math.min(tc,1);
+    let x = lerp(0, finalTargetX, tt);
+    let y = lerp(RELEASE_Y, finalTargetY, tt);
+    let z = lerp(ZFAR, 0, tt);
+    if(tc>1){ z -= (tc-1)*ZFAR*0.6; }
+    y -= 1.1*tt*tt;
+    if(type==="slider"){ x += sliderDir*cfg.breakAmp*Math.pow(tt,3)*0.35; }
+    else if(type==="curve"){ y -= cfg.breakAmp*Math.pow(tt,2.2)*0.35; }
+    else if(type==="riser"){ y += cfg.breakAmp*Math.pow(tt,3)*0.42; }
+    else if(type==="knuckler"){
+      x += (Math.sin(tt*wob.f1*TAU+wob.p1)*wob.a1 + Math.sin(tt*wob.f2*TAU+wob.p2)*wob.a2)*0.3*tt;
+      y += Math.sin(tt*wob.fy1*TAU+wob.py1)*wob.ay1*0.24*tt;
+    } else if(type==="fastball"){
+      x += 0.15*tt*tt;
+    }
+    return {x,y,z};
+  }
+  function predictFinal(readT){
+    const a = sample(Math.max(0,readT-0.06));
+    const b = sample(readT);
+    const dt = 0.06;
+    const vx = (b.x-a.x)/dt, vy=(b.y-a.y)/dt;
+    const remain = 1-readT;
+    return { x: b.x+vx*remain, y: b.y+vy*remain };
+  }
+  return { type, duration, sample, predictFinal, finalTargetX, finalTargetY };
+}
+
+/* ================= FLOW / AT-BAT STATE MACHINE ================= */
+const flow = {
+  phase: "idle", // idle, windup, flight, resolved, select, aim, meter, cpu-decide
+  t: 0,
+  windupT: 0,
+  pitch: null,
+  pitchTypeChosen: null,
+  aimTarget: null,
+  meterDir: 1,
+  meterVal: 0,
+  cpuSwing: null, // {willSwing, swingAt, predicted}
+  trail: [],
+  resultLock: false
+};
+
+let banner_timeout = null;
+function showBanner(text, ms){
+  const el = document.getElementById("banner");
+  el.textContent = text;
+  el.classList.add("show");
+  clearTimeout(banner_timeout);
+  banner_timeout = setTimeout(()=>{ el.classList.remove("show"); }, ms||1300);
+}
+
+function updateHUD(){
+  document.getElementById("scoreBox").textContent = "YOU "+game.score.player+"  -  "+game.score.cpu+" CPU";
+  const badge = document.getElementById("roleBadge");
+  badge.textContent = game.role==="batting" ? "BATTING" : "PITCHING";
+  badge.className = game.role==="batting" ? "bat" : "pitch";
+  document.getElementById("countLine").textContent =
+    "Balls: "+game.count.balls+"  Strikes: "+game.count.strikes+"  |  At-bats left: "+game.atBatsLeft;
+}
+
+function startAtBat(){
+  flow.trail = [];
+  flow.resultLock = false;
+  if(game.role === "batting"){
+    beginCpuPitch();
+  } else {
+    beginPlayerPitchSelect();
+  }
+  updateHUD();
+}
+
+function resetCount(){ game.count.balls=0; game.count.strikes=0; }
+
+function endAtBatOutcome(kind, who){
+  // kind: 'hit','walk','k'  who: 'player' or 'cpu' scoring
+  flow.resultLock = true;
+  if(who==="player"){
+    game.score.player++;
+    if(kind==="hit") stats.hits++;
+    if(kind==="walk") stats.walks++;
+  } else {
+    game.score.cpu++;
+    if(kind==="k"){
+      if(game.role==="pitching") stats.strikeoutsThrown++; else stats.strikeoutsTaken++;
+    }
+  }
+  saveStats();
+  resetCount();
+  updateHUD();
+  checkWinOrNext();
+}
+
+function checkWinOrNext(){
+  if(game.score.player >= WIN_SCORE || game.score.cpu >= WIN_SCORE){
+    setTimeout(()=>endGame(), 1100);
+    return;
+  }
+  game.atBatsLeft--;
+  if(game.atBatsLeft<=0){
+    game.role = game.role==="batting" ? "pitching" : "batting";
+    game.atBatsLeft = 3;
+    showBanner(game.role==="batting" ? "YOU'RE UP TO BAT!" : "YOU'RE PITCHING NOW!", 1600);
+    setTimeout(()=>{ if(game.state==="playing") startAtBat(); }, 1500);
+  } else {
+    setTimeout(()=>{ if(game.state==="playing") startAtBat(); }, 1100);
+  }
+  updateHUD();
+}
+
+function endGame(){
+  game.state = "gameover";
+  const won = game.score.player > game.score.cpu;
+  stats.gamesPlayed++;
+  if(won){ stats.wins++; stats.curStreak = stats.curStreak>0?stats.curStreak+1:1; }
+  else { stats.losses++; stats.curStreak = stats.curStreak<0?stats.curStreak-1:-1; }
+  stats.bestStreak = Math.max(stats.bestStreak, stats.curStreak);
+  saveStats();
+  document.getElementById("winTitle").textContent = won ? "YOU WIN! \u{1F3C6}" : "CPU WINS";
+  document.getElementById("winTitle").style.color = won ? "#2f8f4e" : "#d94f3d";
+  document.getElementById("winScore").textContent = game.score.player+" - "+game.score.cpu;
+  document.getElementById("winOverlay").classList.remove("hidden");
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("pitchDock").classList.add("hidden");
+  if(won) Audio1.win(); else Audio1.lose();
+}
+
+/* ---------- CPU pitching to player (player batting) ---------- */
+function beginCpuPitch(){
+  flow.phase = "windup";
+  flow.windupT = 0;
+  flow.pitch = null;
+  const d = DIFF[game.difficulty];
+  const type = weightedPick(d.pitchWeights);
+  const nibbleRoll = Math.random() < d.nibble;
+  let tx, ty;
+  if(nibbleRoll){
+    const edge = Math.random();
+    tx = (Math.random()<0.5?-1:1) * (ZONE_HALF_W*(0.85+Math.random()*0.35));
+    ty = ZONE_BOTTOM + (ZONE_TOP-ZONE_BOTTOM)*(0.1+Math.random()*0.8);
+  } else {
+    tx = (Math.random()*2-1)*ZONE_HALF_W*0.7;
+    ty = ZONE_BOTTOM + (ZONE_TOP-ZONE_BOTTOM)*(0.3+Math.random()*0.4);
+  }
+  flow.pendingCpuThrow = { type, target:{x:tx,y:ty}, controlErrorMag: d.cpuControlError, speedMult:d.cpuPitchSpeedMult };
+}
+
+function launchPitch(spec){
+  flow.pitch = makePitch(spec);
+  flow.t = 0;
+  flow.trail = [];
+  flow.phase = "flight";
+  flow.cpuSwing = null;
+  if(game.role === "pitching"){
+    // decide CPU batter behavior now
+    const d = DIFF[game.difficulty];
+    const predicted = flow.pitch.predictFinal(d.cpuReadT);
+    const predMargin = 0.28;
+    let willSwing;
+    if(inZone(predicted.x, predicted.y, predMargin, predMargin)){
+      const deepInside = inZone(predicted.x, predicted.y, 0, 0);
+      willSwing = deepInside ? (Math.random() < 0.94) : (Math.random() < 0.7);
+    } else {
+      willSwing = Math.random() < d.chaseChance*0.6;
+    }
+    const jitter = (Math.random()*2-1)*d.reactionJitter;
+    const swingAt = clamp(1+jitter, 0.72, 1.18);
+    flow.cpuSwing = { willSwing, swingAt, predicted, resolved:false };
+  }
+}
+
+/* ---------- Player pitching (role = pitching) ---------- */
+function beginPlayerPitchSelect(){
+  flow.phase = "select";
+  document.getElementById("pitchDock").classList.remove("hidden");
+  document.getElementById("dockHint").textContent = "Choose your pitch";
+  document.getElementById("meterWrap").classList.add("hidden");
+  document.getElementById("pitchTypeRow").classList.remove("hidden");
+}
+function choosePitchType(type){
+  flow.pitchTypeChosen = type;
+  flow.phase = "aim";
+  document.getElementById("dockHint").textContent = "Tap/click near the zone to aim your "+PITCH_TYPES[type].label;
+  document.getElementById("pitchTypeRow").classList.add("hidden");
+}
+function confirmAim(sx,sy){
+  const w = unprojectPlate(sx,sy);
+  flow.aimTarget = { x: clamp(w.x,-1.8,1.8), y: clamp(w.y,0.3,4.6) };
+  flow.phase = "meter";
+  flow.meterVal = 0; flow.meterDir = 1;
+  document.getElementById("dockHint").textContent = "Click/tap to stop the bar in the green!";
+  document.getElementById("meterWrap").classList.remove("hidden");
+}
+function stopMeter(){
+  const accuracy = 1 - Math.abs(flow.meterVal-0.5)*2; // 0..1
+  const d = DIFF[game.difficulty];
+  const errMag = (1-accuracy) * 1.7;
+  document.getElementById("pitchDock").classList.add("hidden");
+  flow.phase = "windup";
+  flow.windupT = 0;
+  flow.pendingCpuThrow = null;
+  flow.pendingPlayerThrow = { type: flow.pitchTypeChosen, target: flow.aimTarget, controlErrorMag: errMag, speedMult: 1 };
+}
+
+/* ---------- Swing resolution ---------- */
+function playerSwing(){
+  if(flow.phase !== "flight" || flow.resultLock) return;
+  const t = flow.t;
+  const finalPos = flow.pitch.sample(1);
+  const proj = project(finalPos.x, finalPos.y, 0);
+  const distPx = Math.hypot(pointer.x-proj.sx, pointer.y-proj.sy);
+  const maxRadiusPx = Math.max(60, ySpread*1.1);
+  const locationScore = clamp(1-distPx/maxRadiusPx,0,1);
+  const timingErr = Math.abs(t-1);
+  const maxTimingWindow = 0.24;
+  const timingScore = clamp(1-timingErr/maxTimingWindow,0,1);
+  resolveSwing(timingScore, locationScore, "player");
+}
+
+function resolveSwing(timingScore, locationScore, who){
+  if(flow.resultLock) return;
+  let kind;
+  if(timingScore < 0.1){
+    kind = "miss";
+  } else {
+    const quality = timingScore*0.55 + locationScore*0.45;
+    const d = DIFF[game.difficulty];
+    const fairT = who==="cpu" ? d.fairThreshold : 0.74;
+    const foulT = who==="cpu" ? d.foulThreshold : 0.40;
+    if(quality >= fairT) kind = "hit";
+    else if(quality >= foulT) kind = "foul";
+    else kind = "miss";
+  }
+  applySwingResult(kind, who);
+}
+
+function applySwingResult(kind, who){
+  flow.resultLock = true;
+  flow.phase = "resolved";
+  if(kind === "hit"){
+    Audio1.crack();
+    game.shake = 1;
+    const batterIsPlayer = (who==="player");
+    showBanner("FAIR BALL!  +1", 1400);
+    endAtBatOutcome("hit", batterIsPlayer ? "player" : "cpu");
+  } else if(kind === "foul"){
+    Audio1.foul();
+    game.count.strikes = Math.min(2, game.count.strikes+1);
+    showBanner("FOUL BALL", 900);
+    updateHUD();
+    flow.resultLock = false;
+    setTimeout(()=>{ if(game.state==="playing") startAtBat(); }, 900);
+  } else {
+    Audio1.whiff();
+    game.count.strikes++;
+    if(game.count.strikes >= 3){
+      Audio1.strikeout();
+      showBanner("STRIKE 3 — K!", 1400);
+      endAtBatOutcome("k", who==="player" ? "cpu" : "player");
+    } else {
+      showBanner("SWING & MISS — STRIKE "+game.count.strikes, 900);
+      updateHUD();
+      flow.resultLock = false;
+      setTimeout(()=>{ if(game.state==="playing") startAtBat(); }, 900);
+    }
+  }
+}
+
+function resolveTake(finalPos, batterIsPlayer){
+  flow.resultLock = true;
+  flow.phase = "resolved";
+  const strike = inZone(finalPos.x, finalPos.y);
+  if(strike){
+    Audio1.strikeCall();
+    game.count.strikes++;
+    if(game.count.strikes >= 3){
+      Audio1.strikeout();
+      showBanner("STRIKE 3 — K!", 1400);
+      endAtBatOutcome("k", batterIsPlayer ? "cpu" : "player");
+      return;
+    }
+    showBanner("STRIKE "+game.count.strikes+" (called)", 900);
+  } else {
+    Audio1.ballCall();
+    game.count.balls++;
+    if(game.count.balls >= 4){
+      showBanner("WALK!  +1", 1400);
+      endAtBatOutcome("walk", batterIsPlayer ? "player" : "cpu");
+      return;
+    }
+    showBanner("BALL "+game.count.balls, 900);
+  }
+  updateHUD();
+  flow.resultLock = false;
+  setTimeout(()=>{ if(game.state==="playing") startAtBat(); }, 900);
+}
+
+/* ================= UPDATE LOOP ================= */
+let lastTs = 0;
+function update(dt){
+  if(game.state !== "playing") return;
+  game.time += dt;
+  if(game.shake>0) game.shake = Math.max(0, game.shake-dt*2.2);
+
+  if(flow.phase === "windup"){
+    flow.windupT += dt/0.55;
+    if(flow.windupT >= 1){
+      flow.windupT = 1;
+      if(game.role === "batting" && flow.pendingCpuThrow){
+        launchPitch(flow.pendingCpuThrow);
+        flow.pendingCpuThrow = null;
+      } else if(game.role === "pitching" && flow.pendingPlayerThrow){
+        launchPitch(flow.pendingPlayerThrow);
+        flow.pendingPlayerThrow = null;
+      }
+    }
+  } else if(flow.phase === "flight"){
+    flow.t += dt / flow.pitch.duration;
+    const pos = flow.pitch.sample(Math.min(flow.t,1));
+    flow.trail.push({x:pos.x,y:pos.y,z:pos.z});
+    if(flow.trail.length>10) flow.trail.shift();
+
+    if(game.role === "pitching" && flow.cpuSwing && !flow.cpuSwing.resolved){
+      if(flow.cpuSwing.willSwing && flow.t >= flow.cpuSwing.swingAt){
+        flow.cpuSwing.resolved = true;
+        const atPos = flow.pitch.sample(flow.cpuSwing.swingAt);
+        const d = DIFF[game.difficulty];
+        const dist = Math.hypot(atPos.x-flow.cpuSwing.predicted.x, atPos.y-flow.cpuSwing.predicted.y);
+        const locationScore = clamp(1-dist/d.contactTolerance,0,1);
+        const timingScore = clamp(1-Math.abs(flow.cpuSwing.swingAt-1)/d.timingWindowCPU,0,1);
+        resolveSwing(timingScore, locationScore, "cpu");
+      }
+    }
+
+    if(flow.t >= 1.001){
+      if(game.role === "batting"){
+        // player never swung
+        resolveTake(flow.pitch.sample(1), true);
+      } else {
+        if(flow.cpuSwing && !flow.cpuSwing.willSwing){
+          resolveTake(flow.pitch.sample(1), false);
+        } else if(flow.cpuSwing && flow.cpuSwing.willSwing && !flow.cpuSwing.resolved){
+          flow.cpuSwing.resolved = true;
+          const atPos = flow.pitch.sample(1);
+          const d = DIFF[game.difficulty];
+          const dist = Math.hypot(atPos.x-flow.cpuSwing.predicted.x, atPos.y-flow.cpuSwing.predicted.y);
+          const locationScore = clamp(1-dist/d.contactTolerance,0,1);
+          resolveSwing(1, locationScore, "cpu");
+        } else if(flow.t > 1.25 && flow.phase==="flight"){
+          resolveTake(flow.pitch.sample(1), false);
+        }
+      }
+    }
+  }
+}
+
+/* ================= RENDERING ================= */
+function drawField(){
+  const skyGrad = ctx2d.createLinearGradient(0,0,0,horizonY);
+  skyGrad.addColorStop(0, "#3f7fd6");
+  skyGrad.addColorStop(1, "#bfe3ff");
+  ctx2d.fillStyle = skyGrad;
+  ctx2d.fillRect(0,0,W,horizonY+2);
+
+  const grassGrad = ctx2d.createLinearGradient(0,horizonY,0,H);
+  grassGrad.addColorStop(0, "#5fae4a");
+  grassGrad.addColorStop(1, "#2f7a3a");
+  ctx2d.fillStyle = grassGrad;
+  ctx2d.fillRect(0,horizonY,W,H-horizonY);
+
+  // mow stripes
+  ctx2d.save();
+  ctx2d.globalAlpha = 0.08;
+  for(let i=0;i<10;i++){
+    ctx2d.fillStyle = i%2===0 ? "#000" : "#fff";
+    const y0 = horizonY + (H-horizonY)*(i/10);
+    const y1 = horizonY + (H-horizonY)*((i+1)/10);
+    ctx2d.fillRect(0,y0,W,y1-y0);
+  }
+  ctx2d.restore();
+
+  // foul lines
+  const plateL = project(-ZONE_HALF_W*1.6, 0, 0);
+  const plateR = project(ZONE_HALF_W*1.6, 0, 0);
+  const vp = { sx:centerX, sy:horizonY };
+  ctx2d.strokeStyle = "#ffffffcc";
+  ctx2d.lineWidth = 3;
+  ctx2d.beginPath(); ctx2d.moveTo(plateL.sx,plateL.sy); ctx2d.lineTo(vp.sx,vp.sy); ctx2d.stroke();
+  ctx2d.beginPath(); ctx2d.moveTo(plateR.sx,plateR.sy); ctx2d.lineTo(vp.sx,vp.sy); ctx2d.stroke();
+
+  // pitching mound
+  const mound = project(0, 0, ZFAR*0.62);
+  ctx2d.fillStyle = "#a9713f";
+  ctx2d.beginPath();
+  ctx2d.ellipse(mound.sx, mound.sy, 70*mound.scale*2.2, 26*mound.scale*2.2, 0,0,TAU);
+  ctx2d.fill();
+  ctx2d.fillStyle = "#8f5c2e";
+  ctx2d.fillRect(mound.sx-18*mound.scale*2, mound.sy-4*mound.scale*2, 36*mound.scale*2, 8*mound.scale*2);
+
+  // home plate
+  const hp = project(0,0.02,0);
+  ctx2d.fillStyle = "#f5f5f0";
+  ctx2d.strokeStyle = "#333"; ctx2d.lineWidth=1.5;
+  const pw = 34, pd=16;
+  ctx2d.beginPath();
+  ctx2d.moveTo(hp.sx-pw, hp.sy);
+  ctx2d.lineTo(hp.sx-pw, hp.sy-pd*0.5);
+  ctx2d.lineTo(hp.sx, hp.sy-pd);
+  ctx2d.lineTo(hp.sx+pw, hp.sy-pd*0.5);
+  ctx2d.lineTo(hp.sx+pw, hp.sy);
+  ctx2d.closePath();
+  ctx2d.fill(); ctx2d.stroke();
+}
+
+function drawZone(highlightAim){
+  const tl = project(-ZONE_HALF_W, ZONE_TOP, 0);
+  const br = project(ZONE_HALF_W, ZONE_BOTTOM, 0);
+  ctx2d.strokeStyle = highlightAim ? "#ffe14d" : "rgba(255,255,255,0.85)";
+  ctx2d.lineWidth = 3;
+  ctx2d.setLineDash([6,4]);
+  ctx2d.strokeRect(tl.sx, tl.sy, br.sx-tl.sx, br.sy-tl.sy);
+  ctx2d.setLineDash([]);
+}
+
+function drawPitcher(windupT, active){
+  const base = project(0,0,ZFAR*0.62);
+  const headP = project(0,5.6,ZFAR*0.62);
+  const scale = base.scale*3.4;
+  const bodyTopY = headP.sy+6*scale;
+  const bodyBotY = base.sy;
+  ctx2d.strokeStyle = "#22405a";
+  ctx2d.fillStyle = "#2b4d6b";
+  ctx2d.lineWidth = 5*scale;
+  ctx2d.lineCap = "round";
+
+  // legs
+  ctx2d.beginPath();
+  ctx2d.moveTo(base.sx, bodyBotY);
+  ctx2d.lineTo(base.sx-10*scale, bodyBotY+22*scale);
+  ctx2d.moveTo(base.sx, bodyBotY);
+  ctx2d.lineTo(base.sx+10*scale, bodyBotY+22*scale);
+  ctx2d.stroke();
+
+  // body
+  ctx2d.beginPath();
+  ctx2d.moveTo(base.sx, bodyBotY);
+  ctx2d.lineTo(headP.sx, bodyTopY);
+  ctx2d.stroke();
+
+  // head
+  ctx2d.beginPath();
+  ctx2d.arc(headP.sx, headP.sy, 7*scale, 0, TAU);
+  ctx2d.fill();
+
+  // arm animation
+  let armAngle;
+  if(active){
+    if(windupT < 0.5) armAngle = lerp(0.6, -1.9, windupT/0.5);
+    else armAngle = lerp(-1.9, 1.1, (windupT-0.5)/0.5);
+  } else {
+    armAngle = 0.6;
+  }
+  const shoulderX = headP.sx, shoulderY = bodyTopY+10*scale;
+  const handX = shoulderX + Math.cos(armAngle)*26*scale;
+  const handY = shoulderY - Math.sin(armAngle)*26*scale;
+  ctx2d.beginPath();
+  ctx2d.moveTo(shoulderX, shoulderY);
+  ctx2d.lineTo(handX, handY);
+  ctx2d.stroke();
+
+  // glove arm (static, opposite side)
+  ctx2d.beginPath();
+  ctx2d.moveTo(shoulderX, shoulderY);
+  ctx2d.lineTo(shoulderX-22*scale, shoulderY+14*scale);
+  ctx2d.stroke();
+}
+
+function drawBatterFigure(swingProgress){
+  const foot = project(0.6, 0, 0.6);
+  const s = foot.scale;
+  const bodyH = 78*s, headR = 12*s;
+  const baseX = foot.sx, baseY = foot.sy;
+  const headX = baseX, headY = baseY - bodyH - headR;
+  ctx2d.strokeStyle = "#5a3a26";
+  ctx2d.fillStyle = "#6b4530";
+  ctx2d.lineWidth = Math.max(2, 6*s);
+  ctx2d.lineCap="round";
+  ctx2d.beginPath();
+  ctx2d.moveTo(baseX, baseY);
+  ctx2d.lineTo(headX, headY+headR);
+  ctx2d.stroke();
+  ctx2d.beginPath();
+  ctx2d.arc(headX, headY, headR, 0, TAU);
+  ctx2d.fill();
+  // bat
+  let batAngle = -0.5;
+  if(swingProgress!==undefined && swingProgress!==null){
+    batAngle = lerp(-0.9, 1.6, clamp(swingProgress,0,1));
+  }
+  const handX = headX+6*s, handY = headY+30*s;
+  const batLen = 40*s;
+  const bx = handX + Math.cos(batAngle)*batLen;
+  const by = handY - Math.sin(batAngle)*batLen*0.6;
+  ctx2d.strokeStyle = "#c99a4b";
+  ctx2d.lineWidth = Math.max(2, 5*s);
+  ctx2d.beginPath();
+  ctx2d.moveTo(handX,handY);
+  ctx2d.lineTo(bx,by);
+  ctx2d.stroke();
+}
+
+function drawBall(pos){
+  const p = project(pos.x,pos.y,Math.max(pos.z,0));
+  const r = Math.max(2, BALL_RADIUS*p.scale*xSpread*2.2);
+  ctx2d.save();
+  ctx2d.translate(p.sx,p.sy);
+  ctx2d.fillStyle = "#fdfdfa";
+  ctx2d.strokeStyle = "#9a9a90";
+  ctx2d.lineWidth = Math.max(1,r*0.08);
+  ctx2d.beginPath();
+  ctx2d.arc(0,0,r,0,TAU);
+  ctx2d.fill(); ctx2d.stroke();
+  if(r>3){
+    ctx2d.fillStyle = "#8a8a80";
+    const holes = 6;
+    for(let i=0;i<holes;i++){
+      const ang = (i/holes)*TAU + pos.z*0.6;
+      const hr = r*0.55;
+      const hx = Math.cos(ang)*hr, hy=Math.sin(ang)*hr*0.6;
+      ctx2d.beginPath();
+      ctx2d.arc(hx,hy,Math.max(0.6,r*0.13),0,TAU);
+      ctx2d.fill();
+    }
+  }
+  ctx2d.restore();
+  return {sx:p.sx, sy:p.sy, r};
+}
+
+function drawTrail(trail){
+  for(let i=0;i<trail.length;i++){
+    const pt = trail[i];
+    const p = project(pt.x,pt.y,Math.max(pt.z,0));
+    const alpha = (i+1)/trail.length*0.35;
+    const r = Math.max(1, BALL_RADIUS*p.scale*xSpread*1.6);
+    ctx2d.fillStyle = "rgba(255,255,255,"+alpha.toFixed(2)+")";
+    ctx2d.beginPath();
+    ctx2d.arc(p.sx,p.sy,r,0,TAU);
+    ctx2d.fill();
+  }
+}
+
+function drawSwingCursor(){
+  if(game.role!=="batting" || flow.phase!=="flight") return;
+  ctx2d.strokeStyle = "#ffe14d";
+  ctx2d.lineWidth = 3;
+  ctx2d.beginPath();
+  ctx2d.arc(pointer.x, pointer.y, 22, 0, TAU);
+  ctx2d.stroke();
+  ctx2d.beginPath();
+  ctx2d.moveTo(pointer.x-30,pointer.y); ctx2d.lineTo(pointer.x-14,pointer.y);
+  ctx2d.moveTo(pointer.x+14,pointer.y); ctx2d.lineTo(pointer.x+30,pointer.y);
+  ctx2d.moveTo(pointer.x,pointer.y-30); ctx2d.lineTo(pointer.x,pointer.y-14);
+  ctx2d.moveTo(pointer.x,pointer.y+14); ctx2d.lineTo(pointer.x,pointer.y+30);
+  ctx2d.stroke();
+}
+
+function drawAimReticle(){
+  if(game.role!=="pitching" || flow.phase!=="aim") return;
+  ctx2d.strokeStyle = "#ff5a3c";
+  ctx2d.lineWidth = 3;
+  ctx2d.beginPath();
+  ctx2d.arc(pointer.x, pointer.y, 16, 0, TAU);
+  ctx2d.stroke();
+}
+
+function render(){
+  ctx2d.save();
+  if(game.shake>0){
+    const s = game.shake;
+    ctx2d.translate((Math.random()*2-1)*8*s, (Math.random()*2-1)*8*s);
+  }
+  drawField();
+
+  const showBatterFig = (game.role === "pitching");
+  const showPitcherFig = true;
+
+  if(showPitcherFig){
+    const active = flow.phase==="windup";
+    drawPitcher(active?flow.windupT:0, active);
+  }
+  if(showBatterFig){
+    let sp = null;
+    if(flow.cpuSwing && flow.phase==="flight"){
+      if(flow.t >= flow.cpuSwing.swingAt-0.15 && flow.cpuSwing.willSwing){
+        sp = clamp((flow.t-(flow.cpuSwing.swingAt-0.15))/0.15,0,1);
+      }
+    }
+    drawBatterFigure(sp);
+  }
+
+  drawZone(game.role==="pitching" && (flow.phase==="aim"));
+
+  if(flow.phase === "flight" && flow.pitch){
+    drawTrail(flow.trail);
+    const pos = flow.pitch.sample(Math.min(flow.t,1));
+    drawBall(pos);
+  }
+
+  drawSwingCursor();
+  drawAimReticle();
+
+  ctx2d.restore();
+}
+
+/* ================= MAIN LOOP ================= */
+function frame(ts){
+  if(!lastTs) lastTs = ts;
+  let dt = (ts-lastTs)/1000;
+  if(dt>0.05) dt = 0.05;
+  lastTs = ts;
+  if(game.state==="playing"){
+    update(dt);
+    if(flow.phase==="meter"){
+      flow.meterVal += flow.meterDir*dt*1.7;
+      if(flow.meterVal>=1){ flow.meterVal=1; flow.meterDir=-1; }
+      if(flow.meterVal<=0){ flow.meterVal=0; flow.meterDir=1; }
+      const bar = document.getElementById("meterBar");
+      bar.style.left = (flow.meterVal*100)+"%";
+    }
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ================= MENU / UI WIRING ================= */
+function setDifficultyButtons(){
+  document.querySelectorAll("#diffRow .btn").forEach(b=>{
+    b.classList.toggle("active", b.dataset.diff===game.difficulty);
+  });
+}
+document.getElementById("diffRow").addEventListener("click",(e)=>{
+  const b = e.target.closest("button"); if(!b) return;
+  game.difficulty = b.dataset.diff;
+  stats.difficulty = game.difficulty;
+  saveStats();
+  setDifficultyButtons();
+});
+
+const soundToggle = document.getElementById("soundToggle");
+const soundTogglePause = document.getElementById("soundTogglePause");
+function syncSoundUI(){
+  soundToggle.checked = !!stats.sound;
+  soundTogglePause.checked = !!stats.sound;
+}
+soundToggle.addEventListener("change", ()=>{
+  stats.sound = soundToggle.checked; saveStats(); syncSoundUI();
+  Audio1.unlock();
+});
+soundTogglePause.addEventListener("change", ()=>{
+  stats.sound = soundTogglePause.checked; saveStats(); syncSoundUI();
+});
+
+document.getElementById("howtoBtn").addEventListener("click", ()=>{
+  document.getElementById("howto").classList.remove("hidden");
+});
+document.getElementById("closeHowto").addEventListener("click", ()=>{
+  document.getElementById("howto").classList.add("hidden");
+});
+document.getElementById("resetStatsBtn").addEventListener("click", ()=>{
+  if(confirm("Reset all lifetime stats? This cannot be undone.")){
+    const keepSound = stats.sound, keepDiff = stats.difficulty;
+    stats = defaultStats();
+    stats.sound = keepSound; stats.difficulty = keepDiff;
+    saveStats(); renderStatsPanel();
+  }
+});
+
+document.getElementById("playBtn").addEventListener("click", ()=>{
+  Audio1.unlock();
+  startGame();
+});
+document.getElementById("pauseBtn").addEventListener("click", ()=>{
+  if(game.state==="playing") pauseGame();
+});
+document.getElementById("resumeBtn").addEventListener("click", resumeGame);
+document.getElementById("quitBtn").addEventListener("click", ()=>{
+  if(confirm("Quit to main menu? Your current game progress will be lost.")){
+    document.getElementById("pauseOverlay").classList.add("hidden");
+    backToMenu();
+  }
+});
+document.getElementById("rematchBtn").addEventListener("click", ()=>{
+  document.getElementById("winOverlay").classList.add("hidden");
+  startGame();
+});
+document.getElementById("winMenuBtn").addEventListener("click", ()=>{
+  document.getElementById("winOverlay").classList.add("hidden");
+  backToMenu();
+});
+
+document.addEventListener("keydown",(e)=>{
+  if(e.key==="Escape" && game.state==="playing") pauseGame();
+});
+
+function buildPitchButtons(){
+  const row = document.getElementById("pitchTypeRow");
+  row.innerHTML = "";
+  PITCH_ORDER.forEach(type=>{
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.textContent = PITCH_TYPES[type].label;
+    b.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      if(flow.phase==="select") choosePitchType(type);
+    });
+    row.appendChild(b);
+  });
+}
+buildPitchButtons();
+
+function pauseGame(){
+  game.state = "paused";
+  document.getElementById("pauseOverlay").classList.remove("hidden");
+}
+function resumeGame(){
+  game.state = "playing";
+  document.getElementById("pauseOverlay").classList.add("hidden");
+  lastTs = 0;
+}
+function backToMenu(){
+  game.state = "menu";
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("pitchDock").classList.add("hidden");
+  document.getElementById("menu").classList.remove("hidden");
+  renderStatsPanel();
+}
+
+function startGame(){
+  game.score.player=0; game.score.cpu=0;
+  game.role="batting"; game.atBatsLeft=3;
+  resetCount();
+  game.state="playing";
+  document.getElementById("menu").classList.add("hidden");
+  document.getElementById("winOverlay").classList.add("hidden");
+  document.getElementById("hud").classList.remove("hidden");
+  lastTs = 0;
+  showBanner("PLAY BALL!", 1200);
+  setTimeout(()=>{ if(game.state==="playing") startAtBat(); }, 900);
+  updateHUD();
+}
+
+/* init */
+game.difficulty = stats.difficulty || "pro";
+setDifficultyButtons();
+syncSoundUI();
+renderStatsPanel();
+
+})();
+</script>
+</body>
+</html>
