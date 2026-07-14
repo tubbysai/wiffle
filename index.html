@@ -461,8 +461,9 @@ resize();
 
 function project(x,y,z){
   const scale = FOCAL/(z+FOCAL);
+  const groundY = horizonY + (plateBaseY-horizonY)*scale;
   const sx = centerX + x*scale*xSpread;
-  const sy = plateBaseY - y*scale*ySpread;
+  const sy = groundY - y*scale*ySpread;
   return {sx, sy, scale};
 }
 function unprojectPlate(sx, sy){
@@ -486,7 +487,7 @@ const game = {
 };
 
 /* pointer tracking */
-const pointer = { x: -9999, y: -9999, active:false };
+const pointer = { x: centerX, y: plateBaseY-ySpread*1.6, active:false };
 function toCanvasCoords(clientX, clientY){
   const rect = canvas.getBoundingClientRect();
   return { x: clientX-rect.left, y: clientY-rect.top };
@@ -602,7 +603,8 @@ const flow = {
   meterVal: 0,
   cpuSwing: null, // {willSwing, swingAt, predicted}
   trail: [],
-  resultLock: false
+  resultLock: false,
+  batSwingT: null
 };
 
 let banner_timeout = null;
@@ -626,6 +628,7 @@ function updateHUD(){
 function startAtBat(){
   flow.trail = [];
   flow.resultLock = false;
+  flow.batSwingT = null;
   if(game.role === "batting"){
     beginCpuPitch();
   } else {
@@ -769,6 +772,7 @@ function stopMeter(){
 /* ---------- Swing resolution ---------- */
 function playerSwing(){
   if(flow.phase !== "flight" || flow.resultLock) return;
+  flow.batSwingT = 0;
   const t = flow.t;
   const finalPos = flow.pitch.sample(1);
   const proj = project(finalPos.x, finalPos.y, 0);
@@ -865,6 +869,10 @@ function update(dt){
   if(game.state !== "playing") return;
   game.time += dt;
   if(game.shake>0) game.shake = Math.max(0, game.shake-dt*2.2);
+  if(flow.batSwingT !== null){
+    flow.batSwingT += dt/0.22;
+    if(flow.batSwingT >= 1) flow.batSwingT = null;
+  }
 
   if(flow.phase === "windup"){
     flow.windupT += dt/0.55;
@@ -989,54 +997,88 @@ function drawZone(highlightAim){
 function drawPitcher(windupT, active){
   const base = project(0,0,ZFAR*0.62);
   const headP = project(0,5.6,ZFAR*0.62);
-  const scale = base.scale*3.4;
+  const scale = base.scale*2.7;
   const bodyTopY = headP.sy+6*scale;
   const bodyBotY = base.sy;
-  ctx2d.strokeStyle = "#22405a";
-  ctx2d.fillStyle = "#2b4d6b";
-  ctx2d.lineWidth = 5*scale;
+
+  let armAngle, kick;
+  if(active){
+    if(windupT < 0.45){
+      const p = windupT/0.45;
+      armAngle = lerp(0.6, -2.0, p);
+      kick = Math.sin(p*Math.PI*0.9);
+    } else {
+      const p = (windupT-0.45)/0.55;
+      armAngle = lerp(-2.0, 1.3, p);
+      kick = Math.max(0, 1 - p*2.2);
+    }
+  } else {
+    armAngle = 0.6; kick = 0;
+  }
   ctx2d.lineCap = "round";
 
-  // legs
+  // back (planted) leg
+  ctx2d.strokeStyle = "#1c3348";
+  ctx2d.lineWidth = Math.max(1,5*scale);
   ctx2d.beginPath();
   ctx2d.moveTo(base.sx, bodyBotY);
-  ctx2d.lineTo(base.sx-10*scale, bodyBotY+22*scale);
+  ctx2d.lineTo(base.sx-9*scale, bodyBotY+22*scale);
+  ctx2d.stroke();
+
+  // front (striding/kicking) leg
+  ctx2d.beginPath();
   ctx2d.moveTo(base.sx, bodyBotY);
-  ctx2d.lineTo(base.sx+10*scale, bodyBotY+22*scale);
+  ctx2d.lineTo(base.sx+(6+kick*10)*scale, bodyBotY+(1-kick)*22*scale);
   ctx2d.stroke();
 
   // body
+  ctx2d.strokeStyle = "#2b4d6b";
+  ctx2d.lineWidth = Math.max(2,9*scale);
   ctx2d.beginPath();
   ctx2d.moveTo(base.sx, bodyBotY);
   ctx2d.lineTo(headP.sx, bodyTopY);
   ctx2d.stroke();
 
-  // head
+  // head (skin tone)
+  ctx2d.fillStyle = "#e0ac7d";
   ctx2d.beginPath();
   ctx2d.arc(headP.sx, headP.sy, 7*scale, 0, TAU);
   ctx2d.fill();
 
-  // arm animation
-  let armAngle;
-  if(active){
-    if(windupT < 0.5) armAngle = lerp(0.6, -1.9, windupT/0.5);
-    else armAngle = lerp(-1.9, 1.1, (windupT-0.5)/0.5);
-  } else {
-    armAngle = 0.6;
-  }
-  const shoulderX = headP.sx, shoulderY = bodyTopY+10*scale;
-  const handX = shoulderX + Math.cos(armAngle)*26*scale;
-  const handY = shoulderY - Math.sin(armAngle)*26*scale;
+  // cap
+  ctx2d.fillStyle = "#c0392b";
+  ctx2d.beginPath();
+  ctx2d.arc(headP.sx, headP.sy-0.5*scale, 7.3*scale, Math.PI*1.02, Math.PI*1.98);
+  ctx2d.fill();
+  ctx2d.beginPath();
+  ctx2d.ellipse(headP.sx+5.5*scale, headP.sy-1*scale, 5*scale, 2*scale, 0, 0, TAU);
+  ctx2d.fill();
+
+  // throwing arm
+  const shoulderX = headP.sx, shoulderY = bodyTopY+6*scale;
+  const handX = shoulderX + Math.cos(armAngle)*24*scale;
+  const handY = shoulderY - Math.sin(armAngle)*24*scale;
+  ctx2d.strokeStyle = "#2b4d6b";
+  ctx2d.lineWidth = Math.max(1,5*scale);
   ctx2d.beginPath();
   ctx2d.moveTo(shoulderX, shoulderY);
   ctx2d.lineTo(handX, handY);
   ctx2d.stroke();
 
-  // glove arm (static, opposite side)
+  // glove arm
+  const gloveAngle = active ? lerp(2.5, 1.7, Math.min(1,windupT*1.3)) : 2.3;
+  const gloveX = shoulderX + Math.cos(gloveAngle)*20*scale;
+  const gloveY = shoulderY - Math.sin(gloveAngle)*20*scale;
   ctx2d.beginPath();
   ctx2d.moveTo(shoulderX, shoulderY);
-  ctx2d.lineTo(shoulderX-22*scale, shoulderY+14*scale);
+  ctx2d.lineTo(gloveX, gloveY);
   ctx2d.stroke();
+  ctx2d.fillStyle = "#8a5a30";
+  ctx2d.beginPath();
+  ctx2d.arc(gloveX, gloveY, Math.max(1,4*scale), 0, TAU);
+  ctx2d.fill();
+
+  return { handX, handY, scale };
 }
 
 function drawBatterFigure(swingProgress){
@@ -1100,6 +1142,19 @@ function drawBall(pos){
   return {sx:p.sx, sy:p.sy, r};
 }
 
+function drawHeldBall(hx, hy, scale){
+  const r = Math.max(2, 5*scale);
+  ctx2d.save();
+  ctx2d.translate(hx,hy);
+  ctx2d.fillStyle = "#fdfdfa";
+  ctx2d.strokeStyle = "#9a9a90";
+  ctx2d.lineWidth = Math.max(0.5, r*0.12);
+  ctx2d.beginPath();
+  ctx2d.arc(0,0,r,0,TAU);
+  ctx2d.fill(); ctx2d.stroke();
+  ctx2d.restore();
+}
+
 function drawTrail(trail){
   for(let i=0;i<trail.length;i++){
     const pt = trail[i];
@@ -1118,13 +1173,51 @@ function drawSwingCursor(){
   ctx2d.strokeStyle = "#ffe14d";
   ctx2d.lineWidth = 3;
   ctx2d.beginPath();
-  ctx2d.arc(pointer.x, pointer.y, 22, 0, TAU);
+  ctx2d.arc(pointer.x, pointer.y, 20, 0, TAU);
   ctx2d.stroke();
+}
+
+function drawBattingBat(){
+  if(game.role!=="batting" || game.state!=="playing") return;
+  const gripX = centerX + xSpread*0.6;
+  const gripY = plateBaseY - ySpread*0.55;
+  const tipX = pointer.x, tipY = pointer.y;
+
+  let swingKick = 0;
+  if(flow.batSwingT !== null){
+    swingKick = Math.sin(clamp(flow.batSwingT,0,1)*Math.PI);
+  }
+  const dx = tipX-gripX, dy = tipY-gripY;
+  const len = Math.hypot(dx,dy)||1;
+  const perpX = -dy/len, perpY = dx/len;
+  const offset = swingKick*85;
+  const drawTipX = tipX + perpX*offset;
+  const drawTipY = tipY + perpY*offset;
+  const barrelX = gripX + (drawTipX-gripX)*0.68;
+  const barrelY = gripY + (drawTipY-gripY)*0.68;
+
+  ctx2d.lineCap = "round";
+  // handle + shaft
+  ctx2d.strokeStyle = "#c99a4b";
+  ctx2d.lineWidth = 9;
   ctx2d.beginPath();
-  ctx2d.moveTo(pointer.x-30,pointer.y); ctx2d.lineTo(pointer.x-14,pointer.y);
-  ctx2d.moveTo(pointer.x+14,pointer.y); ctx2d.lineTo(pointer.x+30,pointer.y);
-  ctx2d.moveTo(pointer.x,pointer.y-30); ctx2d.lineTo(pointer.x,pointer.y-14);
-  ctx2d.moveTo(pointer.x,pointer.y+14); ctx2d.lineTo(pointer.x,pointer.y+30);
+  ctx2d.moveTo(gripX, gripY);
+  ctx2d.lineTo(drawTipX, drawTipY);
+  ctx2d.stroke();
+  // barrel (thicker toward the tip)
+  ctx2d.strokeStyle = "#b9843a";
+  ctx2d.lineWidth = 15;
+  ctx2d.beginPath();
+  ctx2d.moveTo(barrelX, barrelY);
+  ctx2d.lineTo(drawTipX, drawTipY);
+  ctx2d.stroke();
+  // grip wrap
+  ctx2d.strokeStyle = "#3a2b1a";
+  ctx2d.lineWidth = 12;
+  const gripEndX = gripX + (drawTipX-gripX)*0.12, gripEndY = gripY + (drawTipY-gripY)*0.12;
+  ctx2d.beginPath();
+  ctx2d.moveTo(gripX, gripY);
+  ctx2d.lineTo(gripEndX, gripEndY);
   ctx2d.stroke();
 }
 
@@ -1150,7 +1243,10 @@ function render(){
 
   if(showPitcherFig){
     const active = flow.phase==="windup";
-    drawPitcher(active?flow.windupT:0, active);
+    const pInfo = drawPitcher(active?flow.windupT:0, active);
+    if(active && flow.windupT < 0.9){
+      drawHeldBall(pInfo.handX, pInfo.handY, pInfo.scale);
+    }
   }
   if(showBatterFig){
     let sp = null;
@@ -1171,6 +1267,7 @@ function render(){
   }
 
   drawSwingCursor();
+  drawBattingBat();
   drawAimReticle();
 
   ctx2d.restore();
